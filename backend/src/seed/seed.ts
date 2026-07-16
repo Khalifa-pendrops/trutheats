@@ -84,7 +84,7 @@ const seed = async () => {
       address: "14 Apapa Road, Lagos Island, Lagos",
     },
     {
-      email: "chi.limited@trusteats.ng",
+      email: "learnable.limited@trusteats.ng",
       password: "Manufacturer@1234",
       firstName: "Learnable",
       lastName: "Limited",
@@ -135,16 +135,16 @@ const seed = async () => {
     });
 
     manufacturers.push(manufacturer);
-    console.log(`🏭 Manufacturer created: ${m.companyName}`);
+    console.log(`Manufacturer created: ${m.companyName}`);
   }
 
-  const [lagosDairies, chiLimited, fineFoods] = manufacturers;
+  const [lagosDairies, learnableLimited, fineFoods] = manufacturers;
 
-  // ── 3. Create Products ─────────────────────────────────────────────────────
-  const peakMilk = await Product.create({
+  // Create Products
+  const ourMilk = await Product.create({
     manufacturerId: lagosDairies._id,
-    name: "Peak Full Cream Milk",
-    brand: "Peak",
+    name: "Our Full Cream Milk",
+    brand: "Our",
     description:
       "Full cream instant dry milk powder, fortified with vitamins A and D.",
     ingredients: "Whole milk powder, Vitamin A, Vitamin D3",
@@ -158,7 +158,8 @@ const seed = async () => {
     manufacturerId: lagosDairies._id,
     name: "NutriStart Infant Formula",
     brand: "NutriStart",
-    description: "Premium infant formula for babies 0-6 months. WHO-compliant.",
+    description:
+      "Premium infant formula for babies 0 - 6 months. WHO - compliant.",
     ingredients:
       "Lactose, Whey protein, Vegetable oils, DHA, ARA, Iron, Zinc, Vitamins",
     storageInfo: "Store below 25°C. Use within 4 weeks of opening.",
@@ -167,7 +168,7 @@ const seed = async () => {
   });
 
   const juiceDrink = await Product.create({
-    manufacturerId: chiLimited._id,
+    manufacturerId: learnableLimited._id,
     name: "Hollandia Yoghurt Drink",
     brand: "Hollandia",
     description:
@@ -202,11 +203,11 @@ const seed = async () => {
     category: "supplement",
   });
 
-  console.log("📦 Products created");
+  console.log("Products has been created");
 
-  // ── 4. Create Batches ──────────────────────────────────────────────────────
+  // Create Batches
   const activeBatch1 = await Batch.create({
-    productId: peakMilk._id,
+    productId: ourMilk._id,
     manufacturerId: lagosDairies._id,
     batchNumber: "PKM-2024-001",
     manufacturingDate: new Date("2024-01-15"),
@@ -227,7 +228,7 @@ const seed = async () => {
 
   const activeBatch3 = await Batch.create({
     productId: juiceDrink._id,
-    manufacturerId: chiLimited._id,
+    manufacturerId: learnableLimited._id,
     batchNumber: "HYD-2024-007",
     manufacturingDate: new Date("2024-06-01"),
     expiryDate: makeDate(1),
@@ -257,11 +258,11 @@ const seed = async () => {
 
   // Expired batch — returns suspicious
   const expiredBatch = await Batch.create({
-    productId: peakMilk._id,
+    productId: ourMilk._id,
     manufacturerId: lagosDairies._id,
     batchNumber: "PKM-2022-OLD",
     manufacturingDate: new Date("2022-01-01"),
-    expiryDate: new Date("2023-01-01"), // already expired
+    expiryDate: new Date("2023-01-01"), // expired
     quantity: 1000,
     status: "expired",
   });
@@ -278,14 +279,14 @@ const seed = async () => {
     recallReason: "Contamination detected during routine quality inspection.",
   });
 
-  console.log("📋 Batches created");
+  console.log("Batches created");
 
-  // ── 5. Generate Verification Codes ────────────────────────────────────────
+  // Generate Verification Codes
   // GENUINE codes — active batches, approved manufacturers
   const genuineBatches = [
     { batch: activeBatch1, manufacturerId: lagosDairies._id, count: 3 },
     { batch: activeBatch2, manufacturerId: lagosDairies._id, count: 2 },
-    { batch: activeBatch3, manufacturerId: chiLimited._id, count: 3 },
+    { batch: activeBatch3, manufacturerId: learnableLimited._id, count: 3 },
     { batch: activeBatch4, manufacturerId: fineFoods._id, count: 2 },
     { batch: activeBatch5, manufacturerId: fineFoods._id, count: 2 },
   ];
@@ -326,7 +327,7 @@ const seed = async () => {
     suspiciousCodes.push(code);
   }
 
-  // FAKE (recalled batch) codes — return fake due to recalled batch
+  // FAKE (recalled batch) codes — should return fake due to recalled batch
   const recalledCodes: string[] = [];
   for (let i = 0; i < 2; i++) {
     const { code, qrCodeUrl, qrCodePublicId } = await generateAndUploadCode(
@@ -348,13 +349,13 @@ const seed = async () => {
   const deactivatedCodes: string[] = [];
   for (let i = 0; i < 2; i++) {
     const { code, qrCodeUrl, qrCodePublicId } = await generateAndUploadCode(
-      chiLimited._id as mongoose.Types.ObjectId,
+      learnableLimited._id as mongoose.Types.ObjectId,
     );
     await VerificationCode.create({
       code,
       productId: activeBatch3.productId,
       batchId: activeBatch3._id,
-      manufacturerId: chiLimited._id,
+      manufacturerId: learnableLimited._id,
       qrCodeUrl,
       qrCodePublicId,
       isActive: false, // deactivated — returns fake
@@ -362,8 +363,8 @@ const seed = async () => {
     deactivatedCodes.push(code);
   }
 
-  // ── 6. Create a consumer test user ────────────────────────────────────────
-  const consumerPw = await hashPassword("Consumer@1234");
+  // Create a consumer test user
+  const consumerPw = await hashPassword("Consumer@4321");
   await User.collection.insertOne({
     email: "consumer@trusteats.ng",
     passwordHash: consumerPw,
@@ -375,24 +376,26 @@ const seed = async () => {
     updatedAt: new Date(),
   });
 
-  // ── Summary ────────────────────────────────────────────────────────────────
-  console.log("\n✅ Seed complete!\n");
+  // Summary 
+  console.log("\n Seed complete! \n");
   console.log("─────────────────────────────────────────────");
   console.log("ACCOUNTS");
   console.log("  Admin:        admin@trusteats.ng     / Admin@1234");
   console.log("  Manufacturer: lagos.dairies@trusteats.ng / Manufacturer@1234");
-  console.log("  Manufacturer: chi.limited@trusteats.ng   / Manufacturer@1234");
+  console.log(
+    "  Manufacturer: learnable.limited@trusteats.ng   / Manufacturer@1234",
+  );
   console.log("  Manufacturer: finefoods@trusteats.ng     / Manufacturer@1234");
-  console.log("  Consumer:     consumer@trusteats.ng  / Consumer@1234");
+  console.log("  Consumer:     consumer@trusteats.ng  / Consumer@4321");
   console.log("─────────────────────────────────────────────");
   console.log("VERIFICATION CODES");
-  console.log("\n  ✅ GENUINE codes (active batch, approved manufacturer):");
+  console.log("\n  GENUINE codes (active batch, approved manufacturer):");
   genuineCodes.forEach((c, i) => console.log(`     ${i + 1}. ${c}`));
-  console.log("\n  ⚠️  SUSPICIOUS codes (expired batch):");
+  console.log("\n  SUSPICIOUS codes (expired batch):");
   suspiciousCodes.forEach((c, i) => console.log(`     ${i + 1}. ${c}`));
-  console.log("\n  ❌ FAKE codes (recalled batch):");
+  console.log("\n  FAKE codes (recalled batch):");
   recalledCodes.forEach((c, i) => console.log(`     ${i + 1}. ${c}`));
-  console.log("\n  ❌ FAKE codes (deactivated):");
+  console.log("\n  FAKE codes (deactivated):");
   deactivatedCodes.forEach((c, i) => console.log(`     ${i + 1}. ${c}`));
   console.log("─────────────────────────────────────────────");
   console.log(
@@ -403,6 +406,6 @@ const seed = async () => {
 };
 
 seed().catch((err) => {
-  console.error("❌ Seed failed:", err);
+  console.error("This Seed failed:", err);
   process.exit(1);
 });
