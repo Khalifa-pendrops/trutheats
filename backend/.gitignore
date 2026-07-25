@@ -6,3 +6,4 @@ dist/
 !.env.example
 *.log
 demo-qr-codes/
+backend/TrustEats API.postman_collection
