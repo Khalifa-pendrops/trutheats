@@ -42,6 +42,7 @@ app.use("/api/v1/batches", batchRoutes);
 app.use("/api/v1/verify", verificationRoutes);
 app.use("/api/v1/reports", reportRoutes);
 app.use("/api/v1/admin", adminRoutes);
+app.use("/api/v1/analytics", analyticsRoutes);
 
 // Health check
 app.get("/health", (_req, res) => {

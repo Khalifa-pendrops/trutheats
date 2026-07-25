@@ -11,7 +11,7 @@ const returnFakeResult = (res: Response): void => {
     success: true,
     data: {
       status: "fake",
-      message: "❌ This product could not be verified. It may be counterfeit.",
+      message: "This product could not be verified. It may be counterfeit.",
       scannedAt: new Date(),
     },
   });
