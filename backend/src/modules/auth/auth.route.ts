@@ -14,8 +14,8 @@ import { requireAuth } from "../../middleware/requireAuth";
 const router = Router();
 
 const authLimiter = rateLimit({
-  // windowMs: 15 * 60 * 1000,
-  windowMs: 0 * 60 * 1000,
+  windowMs: 15 * 60 * 1000,
+  // windowMs: 0 * 60 * 1000,
   max: 5,
   message: {
     success: false,
