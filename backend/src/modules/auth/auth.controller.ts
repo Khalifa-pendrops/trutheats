@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import User from "../users/user.model";
 import Manufacturer from "../manufacturers/manufacturer.model";
 import {
@@ -11,15 +12,22 @@ import {
 import { AuthenticatedRequest } from "../../types";
 
 export const register = async (req: Request, res: Response): Promise<void> => {
-  const { email, password, firstName, lastName, role } = req.body;
+  const { fullName, email, password, confirmPassword, role } = req.body;
 
-  if (typeof email !== "string" || typeof password !== "string") {
+  if (
+    typeof email !== "string" ||
+    typeof password !== "string" ||
+    typeof fullName !== "string"
+  ) {
     res.status(400).json({ success: false, error: "Invalid input" });
     return;
   }
 
-  if (!email || !password || !firstName || !lastName) {
-    res.status(400).json({ success: false, error: "All fields are required" });
+  if (!fullName.trim() || !email.trim() || !password) {
+    res.status(400).json({
+      success: false,
+      error: "Full name, email and password are required",
+    });
     return;
   }
 
@@ -30,6 +38,19 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  if (confirmPassword !== undefined && password !== confirmPassword) {
+    res.status(400).json({ success: false, error: "Passwords do not match" });
+    return;
+  }
+
+  // Split fullName into firstName + lastName
+  // Everything after the first space becomes lastName
+  const nameParts = fullName.trim().split(/\s+/);
+  const firstName = nameParts[0];
+  const lastName =
+    nameParts.length > 1 ? nameParts.slice(1).join(" ") : nameParts[0];
+
+  // Admin accounts cannot be self-registered
   const allowedRoles = ["consumer", "manufacturer"];
   const assignedRole = allowedRoles.includes(role) ? role : "consumer";
 
@@ -37,7 +58,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   if (existing) {
     res.status(409).json({
       success: false,
-      error: "An account with same credential(s) already exists",
+      error: "An account with this email already exists",
     });
     return;
   }
@@ -45,8 +66,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   const user = await User.create({
     email: email.toLowerCase().trim(),
     passwordHash: password,
-    firstName: firstName.trim(),
-    lastName: lastName.trim(),
+    firstName,
+    lastName,
     role: assignedRole,
   });
 
@@ -107,6 +128,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         email: user.email,
         role: user.role,
         firstName: user.firstName,
+        lastName: user.lastName,
       },
     },
   });
@@ -134,18 +156,13 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
       token,
       process.env.JWT_REFRESH_SECRET as string,
     ) as { userId: string };
+
     const user = await User.findById(decoded.userId).select(
       "+refreshTokenHash",
     );
 
     if (!user || !user.refreshTokenHash) {
-      res
-        .status(401)
-        .json({
-          success: false,
-          error:
-            "Invalid refresh token or no user found with a valid refresh token",
-        });
+      res.status(401).json({ success: false, error: "Invalid refresh token" });
       return;
     }
 
@@ -173,9 +190,10 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
     setTokenCookies(res, accessToken, newRefreshToken);
     res.status(200).json({ success: true, message: "Token refreshed" });
   } catch {
-    res
-      .status(401)
-      .json({ success: false, error: "Invalid or expired refresh token" });
+    res.status(401).json({
+      success: false,
+      error: "Invalid or expired refresh token",
+    });
   }
 };
 
@@ -189,4 +207,113 @@ export const getMe = async (
     return;
   }
   res.status(200).json({ success: true, data: { user } });
+};
+
+export const forgotPassword = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const { email } = req.body;
+
+  if (typeof email !== "string" || !email.trim()) {
+    res.status(400).json({ success: false, error: "Email is required" });
+    return;
+  }
+
+  const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+  // Always return the same response. Do not reveal whether email exists
+  const genericResponse = {
+    success: true,
+    message:
+      "If an account with that email exists, a reset link has been sent.",
+  };
+
+  if (!user) {
+    res.status(200).json(genericResponse);
+    return;
+  }
+
+  // Generate a signed, time-limited reset token
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  const resetTokenHash = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  // Store hash + expiry on the user document
+  await User.findByIdAndUpdate(user._id, {
+    passwordResetTokenHash: resetTokenHash,
+    passwordResetExpiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+  });
+
+  const resetUrl = `${process.env.ALLOWED_ORIGIN}/reset-password?token=${resetToken}&id=${user._id}`;
+
+  // We will send resetUrl via email  via Resend later
+  // For now and testing — i logged to console
+  console.log(`\n🔑 Password reset link for ${user.email}:\n${resetUrl}\n`);
+
+  res.status(200).json(genericResponse);
+};
+
+export const resetPassword = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const { token, userId, newPassword, confirmPassword } = req.body;
+
+  if (!token || !userId || !newPassword) {
+    res.status(400).json({
+      success: false,
+      error: "Token, userId and newPassword are required",
+    });
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    res.status(400).json({ success: false, error: "Passwords do not match" });
+    return;
+  }
+
+  if (newPassword.length < 8 || newPassword.length > 72) {
+    res
+      .status(400)
+      .json({ success: false, error: "Password must be 8–72 characters" });
+    return;
+  }
+
+  // Hash the incoming token to compare with stored hash
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+  const user = await User.findOne({
+    _id: userId,
+    passwordResetTokenHash: tokenHash,
+    passwordResetExpiresAt: { $gt: new Date() }, // not expired
+  }).select("+passwordHash");
+
+  if (!user) {
+    res.status(400).json({
+      success: false,
+      error: "Invalid or expired reset token",
+    });
+    return;
+  }
+
+  // Update password and clear reset token fields
+  user.passwordHash = newPassword; // pre-save hook hashes this
+  (user as unknown as Record<string, unknown>).passwordResetTokenHash =
+    undefined;
+  (user as unknown as Record<string, unknown>).passwordResetExpiresAt =
+    undefined;
+  // Invalidate all existing sessions
+  user.refreshTokenHash = undefined;
+  await user.save();
+
+  // Clear any active cookies
+  clearTokenCookies(res);
+
+  res.status(200).json({
+    success: true,
+    message: "Password reset successfully. Please log in again.",
+  });
 };

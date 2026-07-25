@@ -1,27 +1,31 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
-import { verifyProduct, getScanHistory } from "./verification.controller";
+import {
+  verifyByCode,
+  verifyProduct,
+  getScanHistory,
+} from "./verification.controller";
 import { requireAuth } from "../../middleware/requireAuth";
 import { noCache } from "../../middleware/noCache";
 
 const router = Router();
 
-// Aggressive rate limit — public endpoint, highest traffic
 const verifyLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // 10 scans per IP per minute
-  message: {
-    success: false,
-    error: "You have made too many scan attempts — please wait",
-  },
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { success: false, error: "Too many scan attempts — please wait" },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// Public — no auth required for scanning
-router.post("/", verifyLimiter, verifyProduct);
-
-// Auth required for scan history
+// IMPORTANT NOTE HERE: /history must be defined BEFORE /:code
+// otherwise Express matches "history" as a :code param
 router.get("/history", requireAuth, noCache, getScanHistory);
+
+// QR code URL-based scan. This is what the camera opens directly
+router.get("/:code", verifyLimiter, verifyByCode);
+
+// App-based scan with optional geo context
+router.post("/", verifyLimiter, verifyProduct);
 
 export default router;

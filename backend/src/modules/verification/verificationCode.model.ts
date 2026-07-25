@@ -8,6 +8,7 @@ export interface IVerificationCode extends Document {
   qrCodeUrl: string;
   qrCodePublicId: string;
   scanCount: number;
+  maxExpectedScans: number;
   isActive: boolean;
 }
 
@@ -35,6 +36,12 @@ const VerificationCodeSchema = new Schema<IVerificationCode>(
     qrCodeUrl: { type: String, required: true },
     qrCodePublicId: { type: String, required: true, select: false },
     scanCount: { type: Number, default: 0 },
+    maxExpectedScans: {
+      type: Number,
+      default: 5,
+      // If scanCount > maxExpectedScans the result shifts to suspicious.
+      // Configurable per batch — a display unit may be scanned more than a retail unit.
+    },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true },

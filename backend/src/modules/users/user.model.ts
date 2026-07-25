@@ -10,6 +10,8 @@ export interface IUser extends Document {
   lastName: string;
   isActive: boolean;
   refreshTokenHash?: string;
+  passwordResetTokenHash?: string;
+  passwordResetExpiresAt?: Date;
   lastLoginAt?: Date;
   comparePassword(candidate: string): Promise<boolean>;
 }
@@ -22,7 +24,7 @@ const UserSchema = new Schema<IUser>(
       unique: true,
       lowercase: true,
       trim: true,
-      match: [/^\S+@\S+\.\S+$/, "This email format is kind of invalid, sorry."],
+      match: [/^\S+@\S+\.\S+$/, "Invalid email format"],
     },
     passwordHash: { type: String, required: true, select: false },
     role: {
@@ -34,6 +36,8 @@ const UserSchema = new Schema<IUser>(
     lastName: { type: String, required: true, trim: true, maxlength: 50 },
     isActive: { type: Boolean, default: true },
     refreshTokenHash: { type: String, select: false },
+    passwordResetTokenHash: { type: String, select: false },
+    passwordResetExpiresAt: { type: Date, select: false },
     lastLoginAt: { type: Date },
   },
   { timestamps: true },
@@ -54,6 +58,8 @@ UserSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.passwordHash;
   delete obj.refreshTokenHash;
+  delete obj.passwordResetTokenHash;
+  delete obj.passwordResetExpiresAt;
   return obj;
 };
 

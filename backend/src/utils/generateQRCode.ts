@@ -1,9 +1,13 @@
 import QRCode from "qrcode";
 
-export const generateQRCodeDataURL = async (
-  verificationCode: string,
-): Promise<string> => {
-  return QRCode.toDataURL(verificationCode, {
+const buildVerificationUrl = (code: string): string => {
+  const base = process.env.BASE_URL || "http://localhost:5000";
+  return `${base}/api/v1/verify/${code}`;
+};
+
+// Returns base64 data URL. Used for previews
+export const generateQRCodeDataURL = async (code: string): Promise<string> => {
+  return QRCode.toDataURL(buildVerificationUrl(code), {
     errorCorrectionLevel: "H",
     type: "image/png",
     margin: 2,
@@ -12,10 +16,9 @@ export const generateQRCodeDataURL = async (
   });
 };
 
-export const generateQRCodeBuffer = async (
-  verificationCode: string,
-): Promise<Buffer> => {
-  return QRCode.toBuffer(verificationCode, {
+// Returns PNG buffer. Used for Cloudinary upload
+export const generateQRCodeBuffer = async (code: string): Promise<Buffer> => {
+  return QRCode.toBuffer(buildVerificationUrl(code), {
     errorCorrectionLevel: "H",
     type: "png",
     margin: 2,

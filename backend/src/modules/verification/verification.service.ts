@@ -6,6 +6,12 @@ import Manufacturer from "../manufacturers/manufacturer.model";
 import { VerificationStatus } from "../../types";
 import { Request } from "express";
 
+export interface ScanStats {
+  scansInWindow: number;
+  distinctLocationsInWindow: number;
+  windowHours: number;
+}
+
 export interface VerificationResult {
   status: VerificationStatus;
   product?: {
@@ -29,6 +35,7 @@ export interface VerificationResult {
     country: string;
     logoUrl?: string;
   };
+  scanStats?: ScanStats;
   message: string;
   scannedAt: Date;
 }
@@ -49,6 +56,7 @@ export const computeVerificationResult = async (
     .populate("batchId")
     .populate("manufacturerId");
 
+  // Code not found means FAKE
   if (!verificationCode) {
     await ScanEvent.create({
       code,
@@ -56,6 +64,7 @@ export const computeVerificationResult = async (
       ipHash,
       userAgent: req.headers["user-agent"],
       userId: userId || undefined,
+      location: extractLocation(req),
       scannedAt,
     });
     return {
@@ -65,6 +74,7 @@ export const computeVerificationResult = async (
     };
   }
 
+  // Code deactivated means FAKE
   if (!verificationCode.isActive) {
     await logAndIncrement(
       verificationCode,
@@ -76,7 +86,7 @@ export const computeVerificationResult = async (
     );
     return {
       status: "fake",
-      message: "❌ This verification code has been deactivated.",
+      message: "This verification code has been deactivated.",
       scannedAt,
     };
   }
@@ -99,6 +109,7 @@ export const computeVerificationResult = async (
     category: string;
   };
 
+  // Manufacturer not approved means FAKE
   if (manufacturer.status !== "approved") {
     await logAndIncrement(
       verificationCode,
@@ -115,6 +126,7 @@ export const computeVerificationResult = async (
     };
   }
 
+  // Batch recalled means FAKE
   if (batch.status === "recalled") {
     await logAndIncrement(
       verificationCode,
@@ -131,9 +143,11 @@ export const computeVerificationResult = async (
       batch,
       manufacturer,
       scannedAt,
+      await getScanStats(verificationCode._id as unknown as string),
     );
   }
 
+  // Batch expired or flagged means SUSPICIOUS
   if (
     batch.status === "expired" ||
     batch.status === "flagged" ||
@@ -149,14 +163,37 @@ export const computeVerificationResult = async (
     );
     return buildResult(
       "suspicious",
-      "This product batch is expired or flagged for review. Use with caution.",
+      "This product batch is expired or flagged for review. Use caution.",
       product,
       batch,
       manufacturer,
       scannedAt,
+      await getScanStats(verificationCode._id as unknown as string),
     );
   }
 
+  // Scan count exceeds expected threshold means SUSPICIOUS
+  if (verificationCode.scanCount >= verificationCode.maxExpectedScans) {
+    await logAndIncrement(
+      verificationCode,
+      "suspicious",
+      ipHash,
+      req,
+      userId,
+      scannedAt,
+    );
+    return buildResult(
+      "suspicious",
+      "This code has been scanned an unusual number of times. It may have been duplicated.",
+      product,
+      batch,
+      manufacturer,
+      scannedAt,
+      await getScanStats(verificationCode._id as unknown as string),
+    );
+  }
+
+  // All checks pass means GENUINE
   await logAndIncrement(
     verificationCode,
     "genuine",
@@ -172,8 +209,11 @@ export const computeVerificationResult = async (
     batch,
     manufacturer,
     scannedAt,
+    await getScanStats(verificationCode._id as unknown as string),
   );
 };
+
+// Helpers
 
 const logAndIncrement = async (
   verificationCode: InstanceType<typeof VerificationCode>,
@@ -193,12 +233,44 @@ const logAndIncrement = async (
       ipHash,
       userAgent: req.headers["user-agent"],
       userId: userId || undefined,
+      location: extractLocation(req),
       scannedAt,
     }),
     VerificationCode.findByIdAndUpdate(verificationCode._id, {
       $inc: { scanCount: 1 },
     }),
   ]);
+};
+
+const getScanStats = async (verificationCodeId: string): Promise<ScanStats> => {
+  const windowHours = 24;
+  const windowStart = new Date(Date.now() - windowHours * 60 * 60 * 1000);
+
+  const [scansInWindow, distinctLocations] = await Promise.all([
+    ScanEvent.countDocuments({
+      verificationCodeId,
+      scannedAt: { $gte: windowStart },
+    }),
+    ScanEvent.distinct("location.city", {
+      verificationCodeId,
+      scannedAt: { $gte: windowStart },
+    }),
+  ]);
+
+  return {
+    scansInWindow,
+    distinctLocationsInWindow: distinctLocations.filter(Boolean).length,
+    windowHours,
+  };
+};
+
+const extractLocation = (req: Request): { country?: string; city?: string } => {
+  // Populated from POST /verify body if consumer sends geo context
+  const body = req.body as { country?: string; city?: string };
+  return {
+    country: body?.country,
+    city: body?.city,
+  };
 };
 
 const buildResult = (
@@ -217,10 +289,12 @@ const buildResult = (
   batch: InstanceType<typeof Batch>,
   manufacturer: InstanceType<typeof Manufacturer>,
   scannedAt: Date,
+  scanStats: ScanStats,
 ): VerificationResult => ({
   status,
   message,
   scannedAt,
+  scanStats,
   product: {
     name: product.name,
     brand: product.brand,

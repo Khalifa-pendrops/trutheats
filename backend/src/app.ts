@@ -17,6 +17,7 @@ import batchRoutes from "./modules/batches/batch.route";
 import verificationRoutes from "./modules/verification/verification.route";
 import reportRoutes from "./modules/reports/report.route";
 import adminRoutes from "./modules/admin/admin.routes";
+import analyticsRoutes from "./modules/analytics/analytics.route";
 
 const app = express();
 
