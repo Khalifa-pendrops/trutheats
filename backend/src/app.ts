@@ -19,6 +19,23 @@ import reportRoutes from "./modules/reports/report.route";
 import adminRoutes from "./modules/admin/admin.routes";
 import analyticsRoutes from "./modules/analytics/analytics.route";
 
+const REQUIRED_ENV_VARS = [
+  "MONGO_URI",
+  "JWT_ACCESS_SECRET",
+  "JWT_REFRESH_SECRET",
+  "CLOUDINARY_CLOUD_NAME",
+  "CLOUDINARY_API_KEY",
+  "CLOUDINARY_API_SECRET",
+  "BASE_URL",
+];
+
+for (const key of REQUIRED_ENV_VARS) {
+  if (!process.env[key]) {
+    console.error(`You are missing required environment variable: ${key}`);
+    process.exit(1);
+  }
+}
+
 const app = express();
 
 // Security middleware — has to come first

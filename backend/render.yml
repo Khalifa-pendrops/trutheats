@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: trusteats-backend
+    runtime: node
+    rootDir: .
+    buildCommand: yarn install && yarn build
+    startCommand: node dist/app.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BASE_URL
+        value: http://localhost:5000
+      - key: PASSWORD_RESET_SECRET
+        value: your_reset_secret_min_32_chars
+      - key: PASSWORD_RESET_EXPIRES_IN
+        value: 1h
