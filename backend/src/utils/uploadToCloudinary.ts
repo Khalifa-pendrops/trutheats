@@ -1,4 +1,8 @@
-import { cloudinary } from "../config/cloudinary";
+import {
+  v2 as cloudinary,
+  UploadApiResponse,
+  UploadApiErrorResponse,
+} from "cloudinary";
 import { v4 as uuidv4 } from "uuid";
 
 interface UploadResult {
@@ -12,6 +16,7 @@ export const uploadToCloudinary = (
 ): Promise<UploadResult> => {
   return new Promise((resolve, reject) => {
     const publicId = `${folder}/${uuidv4()}`;
+
     const stream = cloudinary.uploader.upload_stream(
       {
         folder,
@@ -20,13 +25,20 @@ export const uploadToCloudinary = (
         allowed_formats: ["jpg", "jpeg", "png"],
         transformation: [{ quality: "auto", fetch_format: "auto" }],
       },
-      (error, result) => {
-        if (error || !result)
+      (
+        error: UploadApiErrorResponse | undefined,
+        result: UploadApiResponse | undefined,
+      ) => {
+        if (error || !result) {
           return reject(error || new Error("Upload failed"));
+        }
         resolve({ url: result.secure_url, publicId: result.public_id });
       },
     );
-    stream.end(buffer);
+
+    // Write buffer to stream directly
+    stream.write(buffer);
+    stream.end();
   });
 };
 

@@ -11,12 +11,15 @@ export type ReportStatus =
   | "resolved"
   | "dismissed";
 
+export interface AuthenticatedUser {
+  userId: string;
+  role: UserRole;
+  manufacturerId?: string;
+}
+
+// Properly extends Request so all Express properties are inherited. This is important for TypeScript to recognize the request object correctly in route handlers, as seen during first deployment on Render
 export interface AuthenticatedRequest extends Request {
-  user?: {
-    userId: string;
-    role: UserRole;
-    manufacturerId?: string;
-  };
+  user?: AuthenticatedUser;
 }
 
 export interface PaginatedResponse<T> {
