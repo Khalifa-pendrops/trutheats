@@ -95,8 +95,9 @@ const ManufacturerSchema = new Schema<IManufacturer>(
   { timestamps: true },
 );
 
+// ManufacturerSchema.index({ companyName: "text" });
+// ManufacturerSchema.index({ cacNumber: 1 });
 ManufacturerSchema.index({ companyName: "text" });
-ManufacturerSchema.index({ cacNumber: 1 });
 
 export default mongoose.model<IManufacturer>(
   "Manufacturer",
