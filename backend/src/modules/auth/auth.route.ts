@@ -6,6 +6,8 @@ import {
   logout,
   refresh,
   getMe,
+  verifyEmail,
+  resendVerificationOtp,
   forgotPassword,
   resetPassword,
 } from "./auth.controller";
@@ -14,24 +16,26 @@ import { requireAuth } from "../../middleware/requireAuth";
 const router = Router();
 
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  // windowMs: 0 * 60 * 1000,
+  // windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 0 * 60 * 1000, // This was not a security mistake, it was so that demo testing doesn't hold us down. Uncomment after demo
   max: 5,
   message: {
     success: false,
-    error: "Too many attempts — try again in 15 minutes",
+    // error: "Too many attempts — try again in 15 minutes",
+    error: "Too many attempts — try again in 0 minutes", // for demo purposes, change back to 15 minutes after demo
   },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// Stricter limit on password reset to prevent abuse
-const resetLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3,
+const otpLimiter = rateLimit({
+  // windowMs: 60 * 60 * 1000,
+  windowMs: 0 * 60 * 1000, // This was not a security mistake, it was so that demo testing doesn't hold us down. Uncomment after demo
+  max: 5,
   message: {
     success: false,
-    error: "Too many reset attempts — try again in 1 hour",
+    // error: "Too many OTP requests — try again in 1 hour",
+    error: "Too many OTP requests — try again in 0 hours", // for demo purposes, change back to 1 hour after demo
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -42,7 +46,9 @@ router.post("/login", authLimiter, login);
 router.post("/logout", requireAuth, logout);
 router.post("/refresh", refresh);
 router.get("/me", requireAuth, getMe);
-router.post("/forgot-password", resetLimiter, forgotPassword);
-router.post("/reset-password", resetLimiter, resetPassword);
+router.post("/verify-email", otpLimiter, verifyEmail);
+router.post("/resend-verification", otpLimiter, resendVerificationOtp);
+router.post("/forgot-password", otpLimiter, forgotPassword);
+router.post("/reset-password", otpLimiter, resetPassword);
 
 export default router;

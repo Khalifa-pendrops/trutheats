@@ -8,6 +8,12 @@ import VerificationCode from "../verification/verificationCode.model";
 import AuditLog from "./auditLog.model";
 import { AuthenticatedRequest } from "../../types";
 
+import { sendEmail } from "../../utils/sendEmail";
+import {
+  manufacturerApprovalTemplate,
+  manufacturerSuspensionTemplate,
+} from "../../utils/emailTemplates";
+
 export const approveManufacturer = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -23,6 +29,20 @@ export const approveManufacturer = async (
   manufacturer.approvedBy = new Types.ObjectId(req.user!.userId);
   manufacturer.approvedAt = new Date();
   await manufacturer.save();
+
+  // Send approval notification email
+  try {
+    const mfrUser = await User.findById(manufacturer.userId);
+    if (mfrUser) {
+      await sendEmail({
+        to: mfrUser.email,
+        subject: "Your TrustEats manufacturer account has been approved!",
+        html: manufacturerApprovalTemplate(manufacturer.companyName),
+      });
+    }
+  } catch (emailErr) {
+    console.error("[Approve] Email failed:", emailErr);
+  }
 
   await User.findByIdAndUpdate(manufacturer.userId, { role: "manufacturer" });
 
@@ -66,6 +86,20 @@ export const suspendManufacturer = async (
   manufacturer.status = "suspended";
   manufacturer.suspendedReason = reason.trim();
   await manufacturer.save();
+
+  // Send suspension notification email
+  try {
+    const mfrUser = await User.findById(manufacturer.userId);
+    if (mfrUser) {
+      await sendEmail({
+        to: mfrUser.email,
+        subject: "Your TrustEats account has been suspended!",
+        html: manufacturerSuspensionTemplate(manufacturer.companyName, reason),
+      });
+    }
+  } catch (emailErr) {
+    console.error("[Suspend] Email failed:", emailErr);
+  }
 
   await AuditLog.create({
     action: "manufacturer.suspended",

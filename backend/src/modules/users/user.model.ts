@@ -13,6 +13,14 @@ export interface IUser extends Document {
   passwordResetTokenHash?: string;
   passwordResetExpiresAt?: Date;
   lastLoginAt?: Date;
+
+  // just added these for the OTP switch from verification link
+  emailVerified: boolean;
+  emailVerificationOtp?: string;
+  emailVerificationOtpExpiresAt?: Date;
+  passwordResetOtp?: string;
+  passwordResetOtpExpiresAt?: Date;
+
   comparePassword(candidate: string): Promise<boolean>;
 }
 
@@ -39,6 +47,12 @@ const UserSchema = new Schema<IUser>(
     passwordResetTokenHash: { type: String, select: false },
     passwordResetExpiresAt: { type: Date, select: false },
     lastLoginAt: { type: Date },
+
+    emailVerified: { type: Boolean, default: false },
+    emailVerificationOtp: { type: String, select: false },
+    emailVerificationOtpExpiresAt: { type: Date, select: false },
+    passwordResetOtp: { type: String, select: false },
+    passwordResetOtpExpiresAt: { type: Date, select: false },
   },
   { timestamps: true },
 );
@@ -60,6 +74,10 @@ UserSchema.methods.toJSON = function () {
   delete obj.refreshTokenHash;
   delete obj.passwordResetTokenHash;
   delete obj.passwordResetExpiresAt;
+  delete obj.emailVerificationOtp;
+  delete obj.emailVerificationOtpExpiresAt;
+  delete obj.passwordResetOtp;
+  delete obj.passwordResetOtpExpiresAt;
   return obj;
 };
 

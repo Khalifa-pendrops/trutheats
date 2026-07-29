@@ -27,6 +27,8 @@ const REQUIRED_ENV_VARS = [
   "CLOUDINARY_API_KEY",
   "CLOUDINARY_API_SECRET",
   "BASE_URL",
+  "RESEND_API_KEY",
+  "EMAIL_FROM",
 ];
 
 for (const key of REQUIRED_ENV_VARS) {

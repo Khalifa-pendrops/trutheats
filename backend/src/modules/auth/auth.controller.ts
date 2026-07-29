@@ -9,7 +9,18 @@ import {
   setTokenCookies,
   clearTokenCookies,
 } from "../../utils/token";
+import { sendEmail } from "../../utils/sendEmail";
+import { otpEmailTemplate } from "../../utils/emailTemplates";
 import { AuthenticatedRequest } from "../../types";
+
+// Helpers
+
+const generateOTP = (): string =>
+  Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+
+const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+
+// Register
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   const { fullName, email, password, confirmPassword, role } = req.body;
@@ -32,9 +43,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   }
 
   if (password.length < 8 || password.length > 72) {
-    res
-      .status(400)
-      .json({ success: false, error: "Password must be 8–72 characters" });
+    res.status(400).json({
+      success: false,
+      error: "Password must be 8–72 characters",
+    });
     return;
   }
 
@@ -43,14 +55,11 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  // Split fullName into firstName + lastName
-  // Everything after the first space becomes lastName
   const nameParts = fullName.trim().split(/\s+/);
   const firstName = nameParts[0];
   const lastName =
     nameParts.length > 1 ? nameParts.slice(1).join(" ") : nameParts[0];
 
-  // Admin accounts cannot be self-registered
   const allowedRoles = ["consumer", "manufacturer"];
   const assignedRole = allowedRoles.includes(role) ? role : "consumer";
 
@@ -63,20 +72,139 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  const otp = generateOTP();
+  const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
+
   const user = await User.create({
     email: email.toLowerCase().trim(),
     passwordHash: password,
     firstName,
     lastName,
     role: assignedRole,
+    emailVerified: false,
+    emailVerificationOtp: otp,
+    emailVerificationOtpExpiresAt: otpExpiresAt,
   });
+
+  // Send verification OTP email
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: "Verify your TrustEats account",
+      html: otpEmailTemplate(otp, "verify"),
+    });
+  } catch (emailErr) {
+    // Don't fail registration if email fails — log and continue
+    console.error("[Register] Failed to send verification email:", emailErr);
+  }
 
   res.status(201).json({
     success: true,
-    message: "Account created successfully",
+    message:
+      "Account created. Check your email for a 6-digit verification code.",
     data: { userId: user._id, role: user.role },
   });
 };
+
+// Verify Email OTP
+
+export const verifyEmail = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    res
+      .status(400)
+      .json({ success: false, error: "Email and OTP are required" });
+    return;
+  }
+
+  const user = await User.findOne({ email: email.toLowerCase().trim() }).select(
+    "+emailVerificationOtp +emailVerificationOtpExpiresAt",
+  );
+
+  if (!user) {
+    res.status(400).json({ success: false, error: "Invalid or expired OTP" });
+    return;
+  }
+
+  if (user.emailVerified) {
+    res.status(400).json({ success: false, error: "Email already verified" });
+    return;
+  }
+
+  if (
+    !user.emailVerificationOtp ||
+    !user.emailVerificationOtpExpiresAt ||
+    user.emailVerificationOtp !== otp ||
+    user.emailVerificationOtpExpiresAt < new Date()
+  ) {
+    res.status(400).json({ success: false, error: "Invalid or expired OTP" });
+    return;
+  }
+
+  user.emailVerified = true;
+  (user as unknown as Record<string, unknown>).emailVerificationOtp = undefined;
+  (user as unknown as Record<string, unknown>).emailVerificationOtpExpiresAt =
+    undefined;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Email verified successfully. You can now log in.",
+  });
+};
+
+// Resend Verification OTP
+
+export const resendVerificationOtp = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const { email } = req.body;
+
+  if (!email) {
+    res.status(400).json({ success: false, error: "Email is required" });
+    return;
+  }
+
+  const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+  // Always return same response, don't reveal if email exists
+  const genericResponse = {
+    success: true,
+    message: "If an unverified account exists, a new OTP has been sent.",
+  };
+
+  if (!user || user.emailVerified) {
+    res.status(200).json(genericResponse);
+    return;
+  }
+
+  const otp = generateOTP();
+  const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
+
+  await User.findByIdAndUpdate(user._id, {
+    emailVerificationOtp: otp,
+    emailVerificationOtpExpiresAt: otpExpiresAt,
+  });
+
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: "Your new TrustEats verification code",
+      html: otpEmailTemplate(otp, "verify"),
+    });
+  } catch (emailErr) {
+    console.error("[ResendOTP] Email failed:", emailErr);
+  }
+
+  res.status(200).json(genericResponse);
+};
+
+// Login
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
@@ -98,6 +226,16 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   const isMatch = await user.comparePassword(password);
   if (!isMatch) {
     res.status(401).json({ success: false, error: "Invalid credentials" });
+    return;
+  }
+
+  // Block login if email not verified
+  if (!user.emailVerified) {
+    res.status(403).json({
+      success: false,
+      error:
+        "Please verify your email before logging in. Check your inbox for the OTP.",
+    });
     return;
   }
 
@@ -134,6 +272,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   });
 };
 
+// Logout
+
 export const logout = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -142,6 +282,8 @@ export const logout = async (
   clearTokenCookies(res);
   res.status(200).json({ success: true, message: "Logged out successfully" });
 };
+
+// Refresh
 
 export const refresh = async (req: Request, res: Response): Promise<void> => {
   const token = req.cookies?.refreshToken;
@@ -197,6 +339,8 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+// Get Me
+
 export const getMe = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -209,6 +353,8 @@ export const getMe = async (
   res.status(200).json({ success: true, data: { user } });
 };
 
+// Forgot Password
+
 export const forgotPassword = async (
   req: Request,
   res: Response,
@@ -220,52 +366,51 @@ export const forgotPassword = async (
     return;
   }
 
-  const user = await User.findOne({ email: email.toLowerCase().trim() });
-
-  // Always return the same response. Do not reveal whether email exists
   const genericResponse = {
     success: true,
-    message:
-      "If an account with that email exists, a reset link has been sent.",
+    message: "If an account with that email exists, a reset OTP has been sent.",
   };
+
+  const user = await User.findOne({ email: email.toLowerCase().trim() });
 
   if (!user) {
     res.status(200).json(genericResponse);
     return;
   }
 
-  // Generate a signed, time-limited reset token
-  const resetToken = crypto.randomBytes(32).toString("hex");
-  const resetTokenHash = crypto
-    .createHash("sha256")
-    .update(resetToken)
-    .digest("hex");
+  const otp = generateOTP();
+  const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
 
-  // Store hash + expiry on the user document
   await User.findByIdAndUpdate(user._id, {
-    passwordResetTokenHash: resetTokenHash,
-    passwordResetExpiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+    passwordResetOtp: otp,
+    passwordResetOtpExpiresAt: otpExpiresAt,
   });
 
-  const resetUrl = `${process.env.ALLOWED_ORIGIN}/reset-password?token=${resetToken}&id=${user._id}`;
-
-  // We will send resetUrl via email  via Resend later
-  // For now and testing — i logged to console
-  console.log(`\n🔑 Password reset link for ${user.email}:\n${resetUrl}\n`);
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: "Your TrustEats password reset code",
+      html: otpEmailTemplate(otp, "reset"),
+    });
+  } catch (emailErr) {
+    console.error("[ForgotPassword] Email failed:", emailErr);
+  }
 
   res.status(200).json(genericResponse);
 };
+
+// Reset Password
 
 export const resetPassword = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
-  const { token, userId, newPassword, confirmPassword } = req.body;
+  const { email, otp, newPassword, confirmPassword } = req.body;
 
-  if (!token || !userId || !newPassword) {
+  if (!email || !otp || !newPassword) {
     res.status(400).json({
       success: false,
-      error: "Token, userId and newPassword are required",
+      error: "Email, OTP and newPassword are required",
     });
     return;
   }
@@ -276,40 +421,35 @@ export const resetPassword = async (
   }
 
   if (newPassword.length < 8 || newPassword.length > 72) {
-    res
-      .status(400)
-      .json({ success: false, error: "Password must be 8–72 characters" });
-    return;
-  }
-
-  // Hash the incoming token to compare with stored hash
-  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-
-  const user = await User.findOne({
-    _id: userId,
-    passwordResetTokenHash: tokenHash,
-    passwordResetExpiresAt: { $gt: new Date() }, // not expired
-  }).select("+passwordHash");
-
-  if (!user) {
     res.status(400).json({
       success: false,
-      error: "Invalid or expired reset token",
+      error: "Password must be 8–72 characters",
     });
     return;
   }
 
-  // Update password and clear reset token fields
+  const user = await User.findOne({
+    email: email.toLowerCase().trim(),
+  }).select("+passwordHash +passwordResetOtp +passwordResetOtpExpiresAt");
+
+  if (
+    !user ||
+    !user.passwordResetOtp ||
+    !user.passwordResetOtpExpiresAt ||
+    user.passwordResetOtp !== otp ||
+    user.passwordResetOtpExpiresAt < new Date()
+  ) {
+    res.status(400).json({ success: false, error: "Invalid or expired OTP" });
+    return;
+  }
+
   user.passwordHash = newPassword; // pre-save hook hashes this
-  (user as unknown as Record<string, unknown>).passwordResetTokenHash =
+  (user as unknown as Record<string, unknown>).passwordResetOtp = undefined;
+  (user as unknown as Record<string, unknown>).passwordResetOtpExpiresAt =
     undefined;
-  (user as unknown as Record<string, unknown>).passwordResetExpiresAt =
-    undefined;
-  // Invalidate all existing sessions
-  user.refreshTokenHash = undefined;
+  user.refreshTokenHash = undefined; // invalidate all sessions
   await user.save();
 
-  // Clear any active cookies
   clearTokenCookies(res);
 
   res.status(200).json({

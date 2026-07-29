@@ -34,3 +34,7 @@ services:
         sync: false
       - key: PASSWORD_RESET_EXPIRES_IN
         value: 1h
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: TrustEats <onboarding@resend.dev>
