@@ -15,22 +15,20 @@ export const getAnalyticsSummary = async (
   });
 
   if (!manufacturer) {
+    const userId = req.user!.userId;
+
     const [
-      totalProducts,
-      totalCodesIssued,
       totalScans,
       genuineScans,
       suspiciousScans,
       fakeScans,
       recentFlags,
     ] = await Promise.all([
-      Product.countDocuments({ isActive: true }),
-      VerificationCode.countDocuments({}),
-      ScanEvent.countDocuments({}),
-      ScanEvent.countDocuments({ result: "genuine" }),
-      ScanEvent.countDocuments({ result: "suspicious" }),
-      ScanEvent.countDocuments({ result: "fake" }),
-      ScanEvent.find({ result: { $in: ["suspicious", "fake"] } })
+      ScanEvent.countDocuments({ userId }),
+      ScanEvent.countDocuments({ userId, result: "genuine" }),
+      ScanEvent.countDocuments({ userId, result: "suspicious" }),
+      ScanEvent.countDocuments({ userId, result: "fake" }),
+      ScanEvent.find({ userId, result: { $in: ["suspicious", "fake"] } })
         .sort({ scannedAt: -1 })
         .limit(20)
         .populate("productId", "name brand imageUrl")
@@ -40,8 +38,8 @@ export const getAnalyticsSummary = async (
     res.status(200).json({
       success: true,
       data: {
-        totalProducts,
-        totalCodesIssued,
+        totalProducts: 0,
+        totalCodesIssued: 0,
         totalScans,
         scansByResult: {
           genuine: genuineScans,
