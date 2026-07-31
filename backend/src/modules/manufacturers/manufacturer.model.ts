@@ -10,8 +10,8 @@ export interface IManufacturer extends Document {
   nafdacCofRNumber?: string;
   certificateOfRecognitionUrl?: string;
   certificateOfRecognitionPublicId?: string;
-  contactPhone: string;
-  address: string;
+  contactPhone?: string;
+  address?: string;
   country: string;
   logoUrl?: string;
   logoPublicId?: string;
@@ -67,12 +67,12 @@ const ManufacturerSchema = new Schema<IManufacturer>(
     },
     contactPhone: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
     },
     address: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
     },
     country: {
