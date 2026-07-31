@@ -15,9 +15,48 @@ export const getAnalyticsSummary = async (
   });
 
   if (!manufacturer) {
-    res.status(403).json({
-      success: false,
-      error: "Manufacturer profile not found or not approved",
+    const [
+      totalProducts,
+      totalCodesIssued,
+      totalScans,
+      genuineScans,
+      suspiciousScans,
+      fakeScans,
+      recentFlags,
+    ] = await Promise.all([
+      Product.countDocuments({ isActive: true }),
+      VerificationCode.countDocuments({}),
+      ScanEvent.countDocuments({}),
+      ScanEvent.countDocuments({ result: "genuine" }),
+      ScanEvent.countDocuments({ result: "suspicious" }),
+      ScanEvent.countDocuments({ result: "fake" }),
+      ScanEvent.find({ result: { $in: ["suspicious", "fake"] } })
+        .sort({ scannedAt: -1 })
+        .limit(20)
+        .populate("productId", "name brand imageUrl")
+        .lean(),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalProducts,
+        totalCodesIssued,
+        totalScans,
+        scansByResult: {
+          genuine: genuineScans,
+          suspicious: suspiciousScans,
+          fake: fakeScans,
+        },
+        recentFlags: recentFlags.map((flag: any) => ({
+          id: flag._id,
+          scannedAt: flag.scannedAt,
+          result: flag.result,
+          location: flag.location,
+          product: flag.productId || null,
+          code: flag.code,
+        })),
+      },
     });
     return;
   }
@@ -60,7 +99,7 @@ export const getAnalyticsSummary = async (
         suspicious: suspiciousScans,
         fake: fakeScans,
       },
-      recentFlags: recentFlags.map((flag) => ({
+      recentFlags: recentFlags.map((flag: any) => ({
         id: flag._id,
         scannedAt: flag.scannedAt,
         result: flag.result,
