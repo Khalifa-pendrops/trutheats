@@ -49,6 +49,7 @@ const app = express();
 
 // Security middleware — has to come first
 app.use(helmet());
+// CORS: only allow the configured origins and enable credentials (cookies)
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -64,8 +65,23 @@ app.use(
       return callback(new Error(`CORS: origin ${origin} not allowed`));
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+      "Origin",
+      "Referer",
+      "User-Agent",
+    ],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   }),
-);
+); // end cors
+
+// Trust reverse proxies (Render, etc) so secure cookies and IPs are handled correctly
+app.set("trust proxy", true);
 app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: false, limit: "10kb" }));
 app.use(cookieParser());
