@@ -21,25 +21,18 @@ router.post(
       companyName,
       napamsEmail,
       cacNumber,
-      contactPhone,
-      address,
+      // contactPhone,
+      // address,
       country,
       nafdacCofRNumber,
       termsAccepted,
     } = req.body;
 
     // Required field validation
-    if (
-      !companyName ||
-      !napamsEmail ||
-      !cacNumber ||
-      !contactPhone ||
-      !address
-    ) {
+    if (!companyName || !napamsEmail || !cacNumber) {
       res.status(400).json({
         success: false,
-        error:
-          "companyName, napamsEmail, cacNumber, contactPhone and address are required",
+        error: "companyName, napamsEmail and cacNumber are required",
       });
       return;
     }
@@ -110,8 +103,8 @@ router.post(
       nafdacCofRNumber: nafdacCofRNumber?.trim(),
       certificateOfRecognitionUrl: certificateUrl,
       certificateOfRecognitionPublicId: certificatePublicId,
-      contactPhone: contactPhone.trim(),
-      address: address.trim(),
+      // contactPhone: contactPhone.trim(),
+      // address: address.trim(),
       country: country?.trim() || "Nigeria",
       logoUrl,
       logoPublicId,
