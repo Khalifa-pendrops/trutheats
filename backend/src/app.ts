@@ -19,6 +19,12 @@ import reportRoutes from "./modules/reports/report.route";
 import adminRoutes from "./modules/admin/admin.routes";
 import analyticsRoutes from "./modules/analytics/analytics.route";
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://trusteatsrepogroup8.vercel.app",
+];
+
 const REQUIRED_ENV_VARS = [
   "MONGO_URI",
   "JWT_ACCESS_SECRET",
@@ -42,9 +48,18 @@ const app = express();
 
 // Security middleware — has to come first
 app.use(helmet());
+
 app.use(
   cors({
-    origin: process.env.ALLOWED_ORIGIN || "http://localhost:3000",
+    origin: (origin, callback) => {
+      // Allow requests with no origin (Postman, mobile apps, curl)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+      }
+    },
     credentials: true,
   }),
 );

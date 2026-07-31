@@ -138,7 +138,7 @@ export const verifyEmail = async (
   if (
     !user.emailVerificationOtp ||
     !user.emailVerificationOtpExpiresAt ||
-    user.emailVerificationOtp !== otp ||
+    user.emailVerificationOtp !== String(otp).trim() ||
     user.emailVerificationOtpExpiresAt < new Date()
   ) {
     res.status(400).json({ success: false, error: "Invalid or expired OTP" });
