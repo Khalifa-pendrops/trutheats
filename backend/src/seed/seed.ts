@@ -65,6 +65,7 @@ const seed = async () => {
     firstName: "Super",
     lastName: "Admin",
     isActive: true,
+    emailVerified: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   });
@@ -78,6 +79,8 @@ const seed = async () => {
       firstName: "Lagos",
       lastName: "Dairies",
       companyName: "Lagos Dairies Ltd",
+      cacNumber: "RC1234567",
+      napamsEmail: "lagos.dairies@trusteats.ng",
       nafdacNumber: "NAFDAC/FD/2026/001234",
       contactEmail: "info@lagosdairies.ng",
       contactPhone: "+2348012345678",
@@ -89,6 +92,8 @@ const seed = async () => {
       firstName: "Learnable",
       lastName: "Limited",
       companyName: "Learnable Limited Nigeria",
+      cacNumber: "RC2345678",
+      napamsEmail: "learnable.limited@trusteats.ng",
       nafdacNumber: "NAFDAC/FD/2019/005678",
       contactEmail: "info@learnablelimited.com.ng",
       contactPhone: "+2348023456789",
@@ -100,13 +105,14 @@ const seed = async () => {
       firstName: "Fine",
       lastName: "Foods",
       companyName: "Fine Foods Nigeria",
+      cacNumber: "RC3456789",
+      napamsEmail: "finefoods@trusteats.ng",
       nafdacNumber: "NAFDAC/FD/2020/009012",
       contactEmail: "info@finefoods.ng",
       contactPhone: "+2348034567890",
       address: "7 Trans-Amadi Industrial Layout, Port Harcourt",
     },
   ];
-
   const manufacturers = [];
 
   for (const m of mfrData) {
@@ -118,6 +124,7 @@ const seed = async () => {
       firstName: m.firstName,
       lastName: m.lastName,
       isActive: true,
+      emailVerified: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -125,6 +132,8 @@ const seed = async () => {
     const manufacturer = await Manufacturer.create({
       userId: userResult.insertedId,
       companyName: m.companyName,
+      cacNumber: m.cacNumber,
+      napamsEmail: m.napamsEmail,
       nafdacNumber: m.nafdacNumber,
       contactEmail: m.contactEmail,
       contactPhone: m.contactPhone,
@@ -372,11 +381,12 @@ const seed = async () => {
     firstName: "Test",
     lastName: "Consumer",
     isActive: true,
+    emailVerified: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   });
 
-  // Summary 
+  // Summary
   console.log("\n Seed complete! \n");
   console.log("─────────────────────────────────────────────");
   console.log("ACCOUNTS");
